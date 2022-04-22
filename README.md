@@ -3,9 +3,11 @@ Blur Detection works using the total variance of the laplacian of an
 image, this provides a quick and accurate method for scoring how blurry
 an image is.
 
-This package only depends on numpy and opencv, to install them run, 
+This package has a number of dependencies. These can be installed by running: 
 
 ```
+python -m venv .
+Scripts/activate
 pip install -U -r requirements.txt
 ```
 
@@ -30,6 +32,9 @@ python process.py -i input_directory/ -s results.json
 
 # display blur-map image
 python process.py -i input_directory/ -d
+
+# move images into subfolders based on their evaluation
+python process.py -i input_directory -m
 ```
 The saved json file has information on how blurry an image is, the higher the value, the less blurry the image.
 
@@ -47,7 +52,21 @@ The saved json file has information on how blurry an image is, the higher the va
     "threshold": 100.0
 }
 ```
+# History
+## Changes from parent branch
+This was forked from [Will Brennan's BlurDetection2](https://github.com/WillBrennan/BlurDetection2). 
+The major changes from that version are:
+* Support for raw files via RawPy
+  * Note: this has only been tested with NEF and CR2 files!
+* A pre-filter of images with bilinear filtering, as suggested by OpenCV docs.
+* An additional flag that causes images to be moved into subfolders based on their score (blurry/semi_blurry)
+  * Note: This hasn't been tested extensively and may interact poorly with having multiple input paths. 
+* A summary section after everything has been processed that shows statistics for the run.
+* Bugfixes
+  * A fix for the scaling system to increase the range of possible input image sizes
+  * A fix to file detection that prevents files from being processed twice
 
+## Citations
 This is based upon the blogpost [Blur Detection With Opencv](https://www.pyimagesearch.com/2015/09/07/blur-detection-with-opencv/) by Adrian Rosebrock.
 
 ![Blur Mask Demo](https://raw.githubusercontent.com/WillBrennan/BlurDetection2/master/docs/demo.png)
