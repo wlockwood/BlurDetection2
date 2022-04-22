@@ -3,6 +3,7 @@ Blur Detection works using the total variance of the laplacian of an
 image, this provides a quick and accurate method for scoring how blurry
 an image is.
 
+## Setup
 This package has a number of dependencies. These can be installed by running: 
 
 ```
@@ -10,7 +11,9 @@ python -m venv .
 Scripts/activate
 pip install -U -r requirements.txt
 ```
+This creates a virtual environment for the script to run in so that it won't conflict with other scripts.
 
+## Usage
 The repository has a script, `process.py` which lets us run on single images or directories of images. The blur detection method is highly dependent on the size of the image being processed. To get consistent scores we fix the image size to HD, to disable this use  `--variable-size`. The script has options to, 
 
 ```bash
@@ -24,7 +27,7 @@ python process.py -i input_directory/
 python process.py -i input_directory/ other_directory/ input_image.png
 ```
 
-. In addition to logging whether an image is blurry or not, we can also,
+In addition to logging whether an image is blurry or not, we can also,
 
 ```bash
 # save this information to json
