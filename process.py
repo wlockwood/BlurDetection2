@@ -47,7 +47,8 @@ def find_images(image_paths, img_extensions=['.jpg', '.png', '.jpeg']):
 
 
 if __name__ == '__main__':
-    assert sys.version_info >= (3, 6), sys.version_info
+    if not sys.version_info >= (3, 6):
+        raise Exception("Requires at least Python 3.6. Found: ", sys.version_info)
     args = parse_args()
 
     level = logging.DEBUG if args.verbose else logging.INFO
