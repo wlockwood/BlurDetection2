@@ -14,8 +14,14 @@ from blur_detection import estimate_blur
 from blur_detection import fix_image_size
 from blur_detection import pretty_blur_map
 
-raw_types = ['.nef']
+raw_types = ['.nef', '.cr2', '.cr3']
 normal_types = ['.jpg', '.jpeg', '.png']
+
+red = "\033[0;31m"
+green = "\033[0;32m"
+white = "\033[0;37m"
+yellow = "\033[0;33m"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='run blur detection on a single image')
@@ -51,7 +57,7 @@ def find_images(image_paths, img_extensions=raw_types + normal_types):
         if path.is_dir():
             logging.info(f"Found directory '{path}'")
             for img_ext in img_extensions:
-                yield from path.rglob(f'*{img_ext}')
+                yield from path.glob(f'*{img_ext}')
 
 
 def load_image(path):
@@ -118,13 +124,14 @@ if __name__ == '__main__':
         blur_map, score = estimate_blur(image)
         blurry = bool(score < args.threshold_blur)
         semi_blurry = bool(args.threshold_blur <= score < args.threshold_semi)
+        descr = "Blurry" if blurry else "Semi-Blurry" if semi_blurry else "Sharp"
+        color = red if blurry else yellow if semi_blurry else white
 
-
-        logging.info(f'image_path: {image_path} score: {score} blurry: {blurry} semi_blurry: {semi_blurry}')
+        print(color, f'image_path: {image_path.name:12} - score: {score:5,.1f} ({descr})', white)
         results.append({'input_path': str(image_path), 'score': score, 'blurry': blurry, 'semi_blurry': semi_blurry})
 
         if args.display:
-            descr = "Blurry" if blurry else "Semi-Blurry" if semi_blurry else "Sharp"
+
             text = f"{image_path.name}: {descr}"
 
             blur_map = pretty_blur_map(blur_map)
@@ -138,11 +145,34 @@ if __name__ == '__main__':
                 exit()
 
         if args.move:
-            dest_folder = "blurry/" if blurry else "semi_blurry/" if semi_blurry else ""
+            blur_folder = image_path.parent/"blurry"
+            blur_folder.mkdir(exist_ok=True)
+            semi_blur_folder = image_path.parent/"semi_blurry"
+            semi_blur_folder.mkdir(exist_ok=True)
+
+            dest_folder = blur_folder if blurry else semi_blur_folder if semi_blurry else None
             if dest_folder:
-                logging.info(f"Pretending to move {image_path} into the {dest_folder}...")
+                new_path = dest_folder/image_path.name
+                image_path.replace(new_path)
+                logging.debug(f"Moved {image_path.name} into the {dest_folder}...")
             else:
-                logging.info(f"Not moving {image_path} as it's not blurry")
+                logging.debug(f"Not moving {image_path} as it's not blurry")
+
+    print(" = Summary = ")
+    blurs, semis, sharps = [], [], []
+    for r in results:
+        if r["blurry"]:
+            blurs.append(r)
+        elif r["semi_blurry"]:
+            semis.append(r)
+        else:
+            sharps.append(r)
+
+    print(f"Blurry: {len(blurs):,} ({len(blurs)/len(results)*100.0:.1f}%)")
+    print(f"Semi-blurry: {len(semis):,} ({len(semis) / len(results) * 100.0:.1f}%)")
+    print(f"Sharp: {len(sharps):,} ({len(sharps) / len(results) * 100.0:.1f}%)")
+    scores = [r["score"] for r in results]
+    print(f"Blur scores - Min: {min(scores):,.1f} - Mean: {sum(scores)/len(scores):,.1f} - Max: {max(scores):,.1f}")
 
     if save_path is not None:
         logging.info(f'saving json to {save_path}')
