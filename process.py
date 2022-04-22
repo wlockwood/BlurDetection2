@@ -23,6 +23,8 @@ def parse_args():
     parser.add_argument('-v', '--verbose', action='store_true', help='set logging level to debug')
     parser.add_argument('-d', '--display', action='store_true', help='display images')
 
+    parser.add_argument('-m', '--move', action='store_true', help="move files based on result")
+
     return parser.parse_args()
 
 
@@ -63,7 +65,11 @@ if __name__ == '__main__':
     results = []
 
     for image_path in find_images(args.images):
-        image = cv2.imread(str(image_path))
+        if any(r["input_path"].lower() == str(image_path).lower() for r in results):
+            logging.debug(f"Skipping {image_path} because it was already processed. Probably related to case.")
+            continue
+
+        image = load_image(str(image_path))
         if image is None:
             logging.warning(f'warning! failed to read image from {image_path}; skipping!')
             continue
@@ -89,6 +95,13 @@ if __name__ == '__main__':
             if cv2.waitKey(0) == ord('q'):
                 logging.info('exiting...')
                 exit()
+
+        if args.move:
+            dest_folder = "blurry/" if blurry else "semi_blurry/" if semi_blurry else ""
+            if dest_folder:
+                logging.info(f"Pretending to move {image_path} into the {dest_folder}...")
+        else:
+            logging.info(f"Not moving {image_path} as it's not blurry")
 
     if save_path is not None:
         logging.info(f'saving json to {save_path}')
