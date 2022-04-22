@@ -84,6 +84,38 @@ def load_image(path):
     return out
 
 
+def display_image(image_path, blur_map, descr):
+    text = f"{image_path.name}: {descr}"
+
+    blur_map = pretty_blur_map(blur_map)
+    blur_map = cv2.cvtColor(blur_map, cv2.COLOR_GRAY2BGR)
+    cv2.putText(blur_map, text, (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
+    cv2.imshow('result', blur_map)
+
+    if cv2.waitKey(0) == ord('q'):
+        logging.info('exiting...')
+        exit()
+
+
+def show_summary(results):
+    blurs, semis, sharps = [], [], []
+    for r in results:
+        if r["blurry"]:
+            blurs.append(r)
+        elif r["semi_blurry"]:
+            semis.append(r)
+        else:
+            sharps.append(r)
+
+    print(" = Summary = ")
+    print(f"Blurry: {len(blurs):,} ({len(blurs)/len(results)*100.0:.1f}%)")
+    print(f"Semi-blurry: {len(semis):,} ({len(semis) / len(results) * 100.0:.1f}%)")
+    print(f"Sharp: {len(sharps):,} ({len(sharps) / len(results) * 100.0:.1f}%)")
+    scores = [r["score"] for r in results]
+    print(f"Blur scores - Min: {min(scores):,.1f} - Mean: {sum(scores)/len(scores):,.1f} - Max: {max(scores):,.1f}")
+
+
 if __name__ == '__main__':
     if not sys.version_info >= (3, 6):
         raise Exception("Requires at least Python 3.6. Found: ", sys.version_info)
@@ -123,7 +155,7 @@ if __name__ == '__main__':
         image = cv2.bilateralFilter(image, 5, 75, 75)  # Blur prior to downsampling?
         blur_map, score = estimate_blur(image)
         blurry = bool(score < args.threshold_blur)
-        semi_blurry = bool(args.threshold_blur <= score < args.threshold_semi)
+        semi_blurry = bool(args.threshold_blur <= score < args.threshold_semi) # TODO: Numbered bins?
         descr = "Blurry" if blurry else "Semi-Blurry" if semi_blurry else "Sharp"
         color = red if blurry else yellow if semi_blurry else white
 
@@ -131,18 +163,7 @@ if __name__ == '__main__':
         results.append({'input_path': str(image_path), 'score': score, 'blurry': blurry, 'semi_blurry': semi_blurry})
 
         if args.display:
-
-            text = f"{image_path.name}: {descr}"
-
-            blur_map = pretty_blur_map(blur_map)
-            blur_map = cv2.cvtColor(blur_map, cv2.COLOR_GRAY2BGR)
-            cv2.putText(blur_map, text, (10, 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 3)
-            cv2.imshow('result', blur_map)
-
-            if cv2.waitKey(0) == ord('q'):
-                logging.info('exiting...')
-                exit()
+            display_image(image)
 
         if args.move:
             blur_folder = image_path.parent/"blurry"
@@ -158,21 +179,7 @@ if __name__ == '__main__':
             else:
                 logging.debug(f"Not moving {image_path} as it's not blurry")
 
-    print(" = Summary = ")
-    blurs, semis, sharps = [], [], []
-    for r in results:
-        if r["blurry"]:
-            blurs.append(r)
-        elif r["semi_blurry"]:
-            semis.append(r)
-        else:
-            sharps.append(r)
-
-    print(f"Blurry: {len(blurs):,} ({len(blurs)/len(results)*100.0:.1f}%)")
-    print(f"Semi-blurry: {len(semis):,} ({len(semis) / len(results) * 100.0:.1f}%)")
-    print(f"Sharp: {len(sharps):,} ({len(sharps) / len(results) * 100.0:.1f}%)")
-    scores = [r["score"] for r in results]
-    print(f"Blur scores - Min: {min(scores):,.1f} - Mean: {sum(scores)/len(scores):,.1f} - Max: {max(scores):,.1f}")
+    show_summary(results)
 
     if save_path is not None:
         logging.info(f'saving json to {save_path}')
