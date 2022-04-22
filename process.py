@@ -16,7 +16,8 @@ def parse_args():
     parser.add_argument('-i', '--images', type=str, nargs='+', required=True, help='directory of images')
     parser.add_argument('-s', '--save-path', type=str, default=None, help='path to save output')
 
-    parser.add_argument('-t', '--threshold', type=float, default=100.0, help='blurry threshold')
+    parser.add_argument('-tb', '--threshold_blur', type=float, default=50.0, help='blurry threshold')
+    parser.add_argument('-ts', '--threshold_semi', type=float, default=100.0, help='semi-blurry threshold')
     parser.add_argument('-f', '--variable-size', action='store_true', help='fix the image size')
 
     parser.add_argument('-v', '--verbose', action='store_true', help='set logging level to debug')
@@ -74,10 +75,12 @@ if __name__ == '__main__':
         else:
             logging.warning('not normalizing image size for consistent scoring!')
 
-        blur_map, score, blurry = estimate_blur(image, threshold=args.threshold)
+        blur_map, score = estimate_blur(image)
+        blurry = bool(score < args.threshold_blur)
+        semi_blurry = bool(args.threshold_blur <= score < args.threshold_semi)
 
-        logging.info(f'image_path: {image_path} score: {score} blurry: {blurry}')
-        results.append({'input_path': str(image_path), 'score': score, 'blurry': blurry})
+        logging.info(f'image_path: {image_path} score: {score} blurry: {blurry} semi_blurry: {semi_blurry}')
+        results.append({'input_path': str(image_path), 'score': score, 'blurry': blurry, 'semi_blurry': semi_blurry})
 
         if args.display:
             cv2.imshow('input', image)
@@ -91,5 +94,6 @@ if __name__ == '__main__':
         logging.info(f'saving json to {save_path}')
 
         with open(save_path, 'w') as result_file:
-            data = {'images': args.images, 'threshold': args.threshold, 'fix_size': fix_size, 'results': results}
+            data = {'images': args.images, 'threshold': args.threshold_blur,
+                    'threshold_semi': args.threshold_semi, 'fix_size': fix_size, 'results': results}
             json.dump(data, result_file, indent=4)
