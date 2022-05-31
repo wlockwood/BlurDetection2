@@ -28,8 +28,8 @@ def parse_args():
     parser.add_argument('-i', '--images', type=str, nargs='+', required=True, help='directory of images')
     parser.add_argument('-s', '--save-path', type=str, default=None, help='path to save output')
 
-    parser.add_argument('-tb', '--threshold_blur', type=float, default=15.0, help='blurry threshold')
-    parser.add_argument('-ts', '--threshold_semi', type=float, default=25.0, help='semi-blurry threshold')
+    parser.add_argument('-tb', '--threshold_blur', type=float, default=5.0, help='blurry threshold')
+    parser.add_argument('-ts', '--threshold_semi', type=float, default=12.0, help='semi-blurry threshold')
     parser.add_argument('-f', '--variable-size', action='store_true', help='fix the image size')
 
     parser.add_argument('-v', '--verbose', action='store_true', help='set logging level to debug')
@@ -178,6 +178,10 @@ if __name__ == '__main__':
                 logging.debug(f"Moved {image_path.name} into the {dest_folder}...")
             else:
                 logging.debug(f"Not moving {image_path} as it's not blurry")
+
+    if len(results) == 0:
+        print("No images found with specified input paths. Exiting...")
+        exit(1)
 
     show_summary(results)
 
