@@ -14,8 +14,7 @@ from blur_detection import estimate_blur
 from blur_detection import fix_image_size
 from blur_detection import pretty_blur_map
 
-raw_types = ['.nef', '.cr2', '.cr3']
-normal_types = ['.jpg', '.jpeg', '.png']
+from file_handling import find_images, load_image
 
 red = "\033[0;31m"
 green = "\033[0;32m"
@@ -38,50 +37,6 @@ def parse_args():
     parser.add_argument('-m', '--move', action='store_true', help="move files based on result")
 
     return parser.parse_args()
-
-
-def find_images(image_paths, img_extensions=raw_types + normal_types):
-    img_extensions += [i.upper() for i in img_extensions]
-
-    for path in image_paths:
-        path = pathlib.Path(path)
-
-        if path.is_file():
-            logging.info(f"Found image file '{path}'")
-            if path.suffix not in img_extensions:
-                logging.info(f'{path.suffix} is not an image extension! skipping {path}')
-                continue
-            else:
-                yield path
-
-        if path.is_dir():
-            logging.info(f"Found directory '{path}'")
-            for img_ext in img_extensions:
-                yield from path.glob(f'*{img_ext}')
-
-
-def load_image(path):
-    is_raw = any(e in path.lower() for e in raw_types)
-    if is_raw:
-        with rawpy.imread(path) as raw:
-            # raises rawpy.LibRawNoThumbnailError if thumbnail missing
-            # raises rawpy.LibRawUnsupportedThumbnailError if unsupported format
-            thumb = raw.extract_thumb()
-
-        if thumb.format == rawpy.ThumbFormat.JPEG:
-            # thumb.data is already in JPEG format, save as-is
-            bio = BytesIO(thumb.data)
-            pilmage = Image.open(bio)
-            out = cv2.cvtColor(numpy.array(pilmage), cv2.COLOR_RGB2BGR)
-
-        elif thumb.format == rawpy.ThumbFormat.BITMAP:
-            #cv2.cvtColor(numpy.array(pilmage), cv2.COLOR_RGB2BGR)
-            out = thumb.data
-    else:
-        out = cv2.imread(str(path))
-    if out is None:
-        raise Exception(f"Failed to load image data from {path}")
-    return out
 
 
 def display_image(image_path, blur_map, descr):
@@ -136,6 +91,7 @@ if __name__ == '__main__':
     results = []
 
     for image_path in find_images(args.images):
+        print()
         if any(r["input_path"].lower() == str(image_path).lower() for r in results):
             logging.debug(f"Skipping {image_path} because it was already processed. Probably related to case.")
             continue
