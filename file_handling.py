@@ -10,8 +10,6 @@ raw_types = ['.nef', '.cr2', '.cr3']
 normal_types = ['.jpg', '.jpeg', '.png']
 
 def find_images(image_paths, img_extensions=raw_types + normal_types):
-    img_extensions += [i.upper() for i in img_extensions]
-
     for path in image_paths:
         path = pathlib.Path(path)
 
@@ -30,6 +28,9 @@ def find_images(image_paths, img_extensions=raw_types + normal_types):
 
 
 def load_image(path):
+    if not isinstance(path, str):
+        path = str(path)
+
     is_raw = any(e in path.lower() for e in raw_types)
     if is_raw:
         with rawpy.imread(path) as raw:
