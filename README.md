@@ -55,6 +55,9 @@ The saved json file has information on how blurry an image is, the higher the va
     "threshold": 100.0
 }
 ```
+# To-do
+The current algorithm effectively counts the total amount of "edge-ness" found in a picture, which means that images with only small areas in focus can register as false positives, ie, blurry. It should be much better to set a threshold of sharpness and then pass anything that has at least some fraction of the image above that level of sharpness / edge-ness. This would basically be a high-pass filter.
+
 # History
 ## Changes from parent branch
 This was forked from [Will Brennan's BlurDetection2](https://github.com/WillBrennan/BlurDetection2). 
