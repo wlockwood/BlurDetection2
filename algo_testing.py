@@ -23,7 +23,9 @@ class Algorithm:
     name: str
     call_func: Callable
     blurriness_threshold: int
+    bl_params: dict = field(default_factory=dict)  # Bilateral filtering parameters
     hit_count: int = 0
+
 
 
 @dataclass
@@ -46,11 +48,40 @@ class TestImage:
         return f"{self.path.name:>20} {self.expect_result.name:6} --- {self.scores_str(algorithms)}"
 
 
+def build_algos():
+    output = {
+        "FFT": Algorithm("FFT", detect_blur_fft, blurriness_threshold=20, bl_params={"pass_count":0}),
+    }
+    laplace_param_sets = [ # pass_count, diameter, colorSigma, spaceSigma
+        (0,(0,0,0)),
+        (1,(7,75,75)),
+        (2,(7,75,75)),
+        (5,(5,75,75)),
+        (2,(7,150,150))
+    ]
+    for lp_params in laplace_param_sets:
+        ident = f"Laplace({lp_params[0]}p-{lp_params[1][0]}-{lp_params[1][1]}-{lp_params[1][2]})"
+        output[ident] = Algorithm(ident,
+                                      partial(estimate_blur, just_score=True),
+                                      blurriness_threshold=10,
+                                      bl_params={
+                                          "pass_count":lp_params[0],
+                                          "filter_inputs": lp_params[1]
+                                      }
+                                  )
+    return output
+
 def test_an_image(test_im: TestImage, algorithms: dict[str, Algorithm]):
     image = load_image(test_im.path)
     image = fix_image_size(image, 3e6)
     for algo in algorithms.values():
         t0 = pc()
+
+        i = 0
+        while i < algo.bl_params["pass_count"]:
+            image = cv2.bilateralFilter(image, *algo.bl_params["filter_inputs"])
+            i += 1
+
         score = algo.call_func(image)
         elapsed = pc() - t0
 
@@ -78,10 +109,7 @@ def main():
             test_images.append(TestImage(i_path, src_type))
     print(f"Found {len(test_images):,} test images...")
 
-    algorithms = {
-        "Laplace": Algorithm("Laplace", partial(estimate_blur, just_score=True), blurriness_threshold=10),
-        "FFT": Algorithm("FFT", detect_blur_fft, blurriness_threshold=20),
-    }
+    algorithms = build_algos()
 
     print("Launching worker processess...")
     with concurrent.futures.ProcessPoolExecutor() as executor:  # From https://stackoverflow.com/a/15143994/3915338
@@ -102,22 +130,6 @@ def main():
 
 
     print()
-    print(" = Algorithm results = ")
-    for algo in algorithms.values():
-        print(f" - {algo.name} - ")
-        total = len(test_images)
-        hits = len([ti for ti in test_images if ti.actual_results[algo.name] == ti.expect_result])
-        misses = total - hits
-        print(f"Hit rate: {hits * 100.0 / total:4.1f}% \tMiss rate: {misses * 100.0 / total:4.1f}%")
-
-        all_scores = [ti.scores[algo.name] for ti in test_images]
-        print("Scores = Min: {:>6.1f}\tMax: {:>6.1f}\tMean: {:>6.1f}".format(min(all_scores), max(all_scores),
-                                                                       sum(all_scores) / len(all_scores)))
-
-        all_times = [ti.times[algo.name] for ti in test_images]
-        print(" Times = Min: {:>5.1f}s\tMax: {:>5.1f}s\tMean: {:>5.1f}s".format(min(all_times), max(all_times),
-                                                                       sum(all_times) / len(all_times)))
-        print()
 
     if False:
         print(" = Disagreements = ")
@@ -146,6 +158,23 @@ def main():
             blurs = all([x == Sharpness.BLURRY for x in test_image.actual_results.values()])
             if blurs:
                 print(test_image.result_str(algorithms))
+
+    print(" = Algorithm results = ")
+    for algo in algorithms.values():
+        print(f" - {algo.name} - ")
+        total = len(test_images)
+        hits = len([ti for ti in test_images if ti.actual_results[algo.name] == ti.expect_result])
+        misses = total - hits
+        print(f"Hit rate: {hits * 100.0 / total:4.1f}% \tMiss rate: {misses * 100.0 / total:4.1f}%")
+
+        all_scores = [ti.scores[algo.name] for ti in test_images]
+        print("Scores = Min: {:>6.1f}\tMax: {:>6.1f}\tMean: {:>6.1f}".format(min(all_scores), max(all_scores),
+                                                                       sum(all_scores) / len(all_scores)))
+
+        all_times = [ti.times[algo.name] for ti in test_images]
+        print(" Times = Min: {:>5.1f}s\tMax: {:>5.1f}s\tMean: {:>5.1f}s".format(min(all_times), max(all_times),
+                                                                       sum(all_times) / len(all_times)))
+        print()
 
 
 if __name__ == '__main__':
