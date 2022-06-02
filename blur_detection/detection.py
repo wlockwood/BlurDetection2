@@ -3,9 +3,10 @@
 import cv2
 import numpy
 from math import sqrt
+from statistics import mean, median
 
 
-def fix_image_size(image: numpy.array, expected_pixels: float = 2e6):
+def fix_image_size(image: numpy.array, expected_pixels: float = 2e6, print_size=False):
     x0, y0 = image.shape[1], image.shape[0]
     start_pix = x0 * y0
     aspect_ratio = y0 / x0
@@ -15,8 +16,9 @@ def fix_image_size(image: numpy.array, expected_pixels: float = 2e6):
     end_pix = x1 * y1
     resize_ratio = x1 / x0
 
-    #print(f"Resizing image from {x0}x{y0} ({start_pix/1E6:.1f}MP) by {resize_ratio:.3f} in each dimension"
-                 # f" to {x1:.0f}x{y1:.0f} ({end_pix/1E6:.1f}MP)")
+    if print_size:
+        print(f"Resizing image from {x0}x{y0} ({start_pix/1E6:.1f}MP) by {resize_ratio:.3f} in each dimension"
+                     f" to {x1:.0f}x{y1:.0f} ({end_pix/1E6:.1f}MP)")
     return cv2.resize(image, (x1, y1), interpolation=cv2.INTER_CUBIC)
 
 
@@ -101,3 +103,82 @@ def detect_blur_fft(image, size=60, thresh=10, vis=False):
     # the image will be considered "blurry" if the mean value of the
     # magnitudes is less than the threshold value
     return mean
+
+
+def detect_blur_contours(image, contrast_threshold: int = None, filter_func: callable = None, display=False,
+                         name="", debug_header_tracker=[False]):
+    if image.ndim == 3:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    if filter_func is None:
+        x, y = len(image[0]), len(image)
+        min_contour_len = .05 * min(x, y)
+        filter_func = lambda x: x > min_contour_len
+
+    blurred = cv2.blur(image, (3, 3))  # Reduces false edges, which Canny is prone to
+    if contrast_threshold is None:
+        # copied from https://pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
+        sigma = .1
+        # compute the median of the single channel pixel intensities
+        v = numpy.median(image)
+        # apply automatic Canny edge detection using the computed median
+        lower = int(max(0, (1.0 - sigma) * v))
+        contrast_threshold = lower
+        upper = int(min(255, (1.0 + sigma) * v))
+        edges = cv2.Canny(image, lower, upper)
+    else:
+        edges = cv2.Canny(blurred, contrast_threshold, contrast_threshold * 2)
+
+    # Find contours
+    contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    filtered_contours = []
+    lengths = []
+    for c in contours:
+        length = cv2.arcLength(c, False)
+        if filter_func(length):
+            lengths.append(length)
+            filtered_contours.append(c)
+
+    try:
+        stats = {
+            "count": len(lengths),
+            "min": min(lengths),
+            "max": max(lengths),
+            "mean": mean(lengths),
+            "median": median(lengths),
+            "sum": sum(lengths),
+            "MdxC": sqrt(median(lengths) * len(lengths)),
+            "Md+C": sqrt(median(lengths)) + sqrt(len(lengths)),
+            "AMX": sqrt(mean([min(lengths), max(lengths)])),  # AvgMinMax
+        }
+    except ValueError:
+        print(f"{name:>30} --- no contours at contrast threshold {contrast_threshold}")
+        return 0
+
+    if not debug_header_tracker[0]:
+        headers = " " * 35 + " | ".join(f"{k.capitalize():^6}" for k in stats)
+        print(headers)
+        debug_header_tracker[0] = True
+    text = " | ".join(f"{v:>6.0f}" for v in stats.values())
+    print(f"{name:>30} --- {text}")
+
+    if display:
+        # Draw contours
+        draw_canvas = cv2.normalize(image, None, 0, 150, cv2.NORM_MINMAX)  # Darken
+
+        for i in range(len(filtered_contours)):
+            scaled_color_len = lengths[i] / max_len * 256
+            color = (100, 256 - scaled_color_len, scaled_color_len)
+            cv2.drawContours(draw_canvas, filtered_contours, i, color, 2, cv2.LINE_8, hierarchy, 0)
+
+        text = "Contour Lengths  Min: {:.1f}  Max: {:.1f}  Mean: {:.1f}  Median: {:.1f}  Total: {:,.0f}". \
+            format()
+        cv2.putText(draw_canvas, text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
+
+        # Show in a window
+        cv2.imshow(draw_canvas)
+        cv2.waitKey()
+
+
+
