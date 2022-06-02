@@ -105,7 +105,7 @@ def detect_blur_fft(image, size=60, thresh=10, vis=False):
     return mean
 
 
-def detect_blur_contours(image, contrast_threshold: int = None, filter_func: callable = None, display=False,
+def detect_blur_contours(image, contrast_threshold: int = 255, filter_func: callable = None, display=False,
                          name="", debug_header_tracker=[False]):
     if image.ndim == 3:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -115,22 +115,17 @@ def detect_blur_contours(image, contrast_threshold: int = None, filter_func: cal
         min_contour_len = .05 * min(x, y)
         filter_func = lambda x: x > min_contour_len
 
-    blurred = cv2.blur(image, (3, 3))  # Reduces false edges, which Canny is prone to
-    if contrast_threshold is None:
-        # copied from https://pyimagesearch.com/2015/04/06/zero-parameter-automatic-canny-edge-detection-with-python-and-opencv/
-        sigma = .1
-        # compute the median of the single channel pixel intensities
-        v = numpy.median(image)
-        # apply automatic Canny edge detection using the computed median
-        lower = int(max(0, (1.0 - sigma) * v))
-        contrast_threshold = lower
-        upper = int(min(255, (1.0 + sigma) * v))
-        edges = cv2.Canny(image, lower, upper)
-    else:
+    contours = []
+    while True:
+        blurred = cv2.blur(image, (3, 3))  # Reduces false edges, which Canny is prone to
         edges = cv2.Canny(blurred, contrast_threshold, contrast_threshold * 2)
 
-    # Find contours
-    contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # Find contours
+        contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contours) < 10:
+            contrast_threshold -= 10
+        else:
+            break
 
     filtered_contours = []
     lengths = []
@@ -142,6 +137,7 @@ def detect_blur_contours(image, contrast_threshold: int = None, filter_func: cal
 
     try:
         stats = {
+            "t@10c": contrast_threshold,
             "count": len(lengths),
             "min": min(lengths),
             "max": max(lengths),
