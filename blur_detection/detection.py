@@ -105,59 +105,63 @@ def detect_blur_fft(image, size=60, thresh=10, vis=False):
     return mean
 
 
-def detect_blur_contours(image, contrast_threshold: int = 255, filter_func: callable = None, display=False,
-                         name="", debug_header_tracker=[False]):
+def detect_blur_contours(image, contrast_threshold: int = 255,
+                         contrast_window_size_coeff: float = 2.2,
+                         min_contour_len_p:float=.00,  # Minimum contour length percentage
+                         seek_contours: int=10, display=False,
+                         stats = False,
+                         name="",
+                         debug_header_tracker=[False]):
     if image.ndim == 3:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    if filter_func is None:
-        x, y = len(image[0]), len(image)
-        min_contour_len = .05 * min(x, y)
-        filter_func = lambda x: x > min_contour_len
+    x, y = len(image[0]), len(image)
+    min_contour_len = min_contour_len_p * min(x, y)
 
     contours = []
     while True:
         blurred = cv2.blur(image, (3, 3))  # Reduces false edges, which Canny is prone to
-        edges = cv2.Canny(blurred, contrast_threshold, contrast_threshold * 2)
+        edges = cv2.Canny(blurred, contrast_threshold, contrast_threshold * contrast_window_size_coeff)
 
         # Find contours
         contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        if len(contours) < 10:
+
+        filtered_contours = []
+        lengths = []
+        for c in contours:
+            length = cv2.arcLength(c, False)
+            if length >= min_contour_len:
+                lengths.append(length)
+                filtered_contours.append(c)
+
+        if len(filtered_contours) < seek_contours and contrast_threshold > 0:
             contrast_threshold -= 10
         else:
             break
+    if stats:
+        try:
+            stats = {
+                "t@10c": contrast_threshold,
+                "count": len(lengths),
+                "min": min(lengths),
+                "max": max(lengths),
+                "mean": mean(lengths),
+                "median": median(lengths),
+                "sum": sum(lengths),
+                "MdxC": sqrt(median(lengths) * len(lengths)),
+                "Md+C": sqrt(median(lengths)) + sqrt(len(lengths)),
+                "AMX": sqrt(mean([min(lengths), max(lengths)])),  # AvgMinMax
+            }
+        except ValueError:
+            print(f"{name:>30} --- no contours at contrast threshold {contrast_threshold}")
+            return 0
 
-    filtered_contours = []
-    lengths = []
-    for c in contours:
-        length = cv2.arcLength(c, False)
-        if filter_func(length):
-            lengths.append(length)
-            filtered_contours.append(c)
-
-    try:
-        stats = {
-            "t@10c": contrast_threshold,
-            "count": len(lengths),
-            "min": min(lengths),
-            "max": max(lengths),
-            "mean": mean(lengths),
-            "median": median(lengths),
-            "sum": sum(lengths),
-            "MdxC": sqrt(median(lengths) * len(lengths)),
-            "Md+C": sqrt(median(lengths)) + sqrt(len(lengths)),
-            "AMX": sqrt(mean([min(lengths), max(lengths)])),  # AvgMinMax
-        }
-    except ValueError:
-        print(f"{name:>30} --- no contours at contrast threshold {contrast_threshold}")
-        return 0
-
-    if not debug_header_tracker[0]:
-        headers = " " * 35 + " | ".join(f"{k.capitalize():^6}" for k in stats)
-        print(headers)
-        debug_header_tracker[0] = True
-    text = " | ".join(f"{v:>6.0f}" for v in stats.values())
-    print(f"{name:>30} --- {text}")
+        if not debug_header_tracker[0]:
+            headers = " " * 35 + " | ".join(f"{k.capitalize():^6}" for k in stats)
+            print(headers)
+            debug_header_tracker[0] = True
+        text = " | ".join(f"{v:>6.0f}" for v in stats.values())
+        print(f"{name:>30} --- {text}")
 
     if display:
         # Draw contours
@@ -176,5 +180,5 @@ def detect_blur_contours(image, contrast_threshold: int = 255, filter_func: call
         cv2.imshow(draw_canvas)
         cv2.waitKey()
 
-
+    return contrast_threshold
 

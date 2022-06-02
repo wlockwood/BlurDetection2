@@ -10,9 +10,8 @@ import numpy
 from PIL import Image
 from io import BytesIO
 
-from blur_detection import estimate_blur
-from blur_detection import fix_image_size
-from blur_detection import pretty_blur_map
+from blur_detection import estimate_blur, fix_image_size, pretty_blur_map
+from blur_detection.detection import detect_blur_contours
 
 from file_handling import find_images, load_image
 
@@ -27,8 +26,8 @@ def parse_args():
     parser.add_argument('-i', '--images', type=str, nargs='+', required=True, help='directory of images')
     parser.add_argument('-s', '--save-path', type=str, default=None, help='path to save output')
 
-    parser.add_argument('-tb', '--threshold_blur', type=float, default=5.0, help='blurry threshold')
-    parser.add_argument('-ts', '--threshold_semi', type=float, default=12.0, help='semi-blurry threshold')
+    parser.add_argument('-tb', '--threshold_blur', type=float, default=90, help='blurry threshold')
+    parser.add_argument('-ts', '--threshold_semi', type=float, default=115, help='semi-blurry threshold')
     parser.add_argument('-f', '--variable-size', action='store_true', help='fix the image size')
 
     parser.add_argument('-v', '--verbose', action='store_true', help='set logging level to debug')
@@ -51,6 +50,13 @@ def display_image(image_path, blur_map, descr):
     if cv2.waitKey(0) == ord('q'):
         logging.info('exiting...')
         exit()
+
+
+def slope_calc(input_list: list[int]):
+    indices = range(len(input_list))
+    result = numpy.polyfit(indices, list(input_list), 1)
+    slope = result[-2]
+    return float(slope)
 
 
 def show_summary(results):
@@ -108,8 +114,8 @@ if __name__ == '__main__':
         else:
             logging.warning('not normalizing image size for consistent scoring!')
 
-        image = cv2.bilateralFilter(image, 5, 75, 75)  # Blur prior to downsampling?
-        blur_map, score = estimate_blur(image)
+        score = detect_blur_contours(image)
+
         blurry = bool(score < args.threshold_blur)
         semi_blurry = bool(args.threshold_blur <= score < args.threshold_semi) # TODO: Numbered bins?
         descr = "Blurry" if blurry else "Semi-Blurry" if semi_blurry else "Sharp"
@@ -119,7 +125,7 @@ if __name__ == '__main__':
         results.append({'input_path': str(image_path), 'score': score, 'blurry': blurry, 'semi_blurry': semi_blurry})
 
         if args.display:
-            display_image(image)
+            display_image(image_path, blur_map, descr)
 
         if args.move:
             blur_folder = image_path.parent/"blurry"
