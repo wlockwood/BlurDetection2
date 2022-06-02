@@ -1,7 +1,5 @@
 # Blur Detection
-Blur Detection works using the total variance of the laplacian of an
-image, this provides a quick and accurate method for scoring how blurry
-an image is.
+Blur Detection estimates sharpness by seeking contours in an image. It starts out with a very strict contrast threshold for contour growth while seeking a minimum number of contours. If it can't find that minimum, it relaxes the contrast threshold and tries again. Sharper images will tend to have contours that are easier to find, while blurry images will require very low contrast thresholds or have no contours at all.
 
 ## Setup
 This package has a number of dependencies. These can be installed by running: 
@@ -39,7 +37,7 @@ python process.py -i input_directory/ -d
 # move images into subfolders based on their evaluation
 python process.py -i input_directory -m
 ```
-The saved json file has information on how blurry an image is, the higher the value, the less blurry the image.
+The saved json file has information on how sharp an image is, the higher the value, the sharper the image.
 
 ```json
 {
@@ -55,16 +53,15 @@ The saved json file has information on how blurry an image is, the higher the va
     "threshold": 100.0
 }
 ```
-# To-do
-The current algorithm effectively counts the total amount of "edge-ness" found in a picture, which means that images with only small areas in focus can register as false positives, ie, blurry. It should be much better to set a threshold of sharpness and then pass anything that has at least some fraction of the image above that level of sharpness / edge-ness. This would basically be a high-pass filter.
 
-# History
-## Changes from parent branch
+# History / Changes from parent branch
 This was forked from [Will Brennan's BlurDetection2](https://github.com/WillBrennan/BlurDetection2). 
 The major changes from that version are:
+* Switched to a completely different (mildly novel?) algorithm for estimating blur.
 * Support for raw files via RawPy
   * Note: this has only been tested with NEF and CR2 files!
-* A pre-filter of images with bilinear filtering, as suggested by OpenCV docs.
+* The original script processed every file twice in Windows environments due to a difference in how globbing works between Linux and Windows. I'm a Windows-focused developer, and my "bugfix" for this effectively moves the bug to Linux.
+  * If running this script on Linux, note that it will only seek lowercase filenames by default.
 * An additional flag that causes images to be moved into subfolders based on their score (blurry/semi_blurry)
   * Note: This hasn't been tested extensively and may interact poorly with having multiple input paths. 
 * A summary section after everything has been processed that shows statistics for the run.
@@ -73,6 +70,6 @@ The major changes from that version are:
   * A fix to file detection that prevents files from being processed twice
 
 ## Citations
-This is based upon the blogpost [Blur Detection With Opencv](https://www.pyimagesearch.com/2015/09/07/blur-detection-with-opencv/) by Adrian Rosebrock.
+This is based upon the blog post [Blur Detection With Opencv](https://www.pyimagesearch.com/2015/09/07/blur-detection-with-opencv/) by Adrian Rosebrock.
 
 ![Blur Mask Demo](https://raw.githubusercontent.com/WillBrennan/BlurDetection2/master/docs/demo.png)
